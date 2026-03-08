@@ -29,6 +29,8 @@ Next I saved the STEP for the board with the parts, and moved on over to fusion.
 
 ![image](https://stasis.hackclub-assets.com/images/1772987541316-9lp0tq.png)
 
+I would like to note, there are holes for heat-press inserts, which I have myself, alongside the proper screws, so unless it comes in the kit for this starter project, I dont need them hence why they aren't separately mentioned in the BOM. 
+
 After basically finishing the whole 3D modelling and such, I worked on the firmware, where although I cannot put here, I provided a snippet of the code below, with the full thing being in the github repo:
 
 ![image](https://stasis.hackclub-assets.com/images/1772987698248-z54bf8.png)
