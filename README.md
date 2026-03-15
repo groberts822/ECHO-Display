@@ -35,6 +35,18 @@ After basically finishing the whole 3D modelling and such, I worked on the firmw
 
 ![image](https://stasis.hackclub-assets.com/images/1772987698248-z54bf8.png)
 
+BOM is below:
+
+| Qty | Part | Link | Notes |
+|-----|------|------|-------|
+| 1 | ESP32 LOLIN C3 Mini | [AliExpress](https://lolin.aliexpress.com/store/1331105) | |
+| 1 | 1.8" TFT Display ST7735 | [AliExpress](https://www.aliexpress.com/w/wholesale-st7735-1.8-tft-display.html) | |
+| 1 | Custom PCB | [JLCPCB](https://jlcpcb.com) | Already ordered |
+| 3 | Cherry MX Switches | [NovelKeys](https://novelkeys.com/products/cherry-mx2a-switches) | Leftover from Hackpad |
+| 3 | Keycaps (1u) | [NovelKeys](https://novelkeys.com) | Leftover from Hackpad |
+| 4 | M3 Heatset Inserts | [Amazon](https://www.amazon.com/initeq-M3-0-5-Threaded-Inserts-Printing/dp/B077CJV3Z9) | Leftover from Hackpad |
+| 4 | M3 Screws | [Amazon](https://www.amazon.com/s?k=m3+screws) | Leftover from Hackpad |
+
 All files have been uploaded to the github repo, and just to be sure I had also provided the gerber files so its easier to just take them straight off of there when I order the pcb. 
 Lastly, ECHO, or Embedded Controller & Hidden Operations (yes I know the name is weird, it'll make sense), is a desk Spotify display built using an ESP32 C3 Mini, alongside a 1.8" TFT screen, 3 mechanical switches for playback control, and a hidden Space Invaders game unlocked by holding all 3 keys (hence the "& Hidden Operations").
 The display shows your current track with mood-based colors, scrolling text, animated bars, and a progress bar. The PCB was (although as expected) built in KiCad while the case was designed around the full PCB in Fusion360. 
