@@ -39,8 +39,8 @@ BOM is below:
 
 | Qty | Part | Link | Notes |
 |-----|------|------|-------|
-| 1 | ESP32 LOLIN C3 Mini | [AliExpress](https://lolin.aliexpress.com/store/1331105) | |
-| 1 | 1.8" TFT Display ST7735 | [AliExpress](https://www.aliexpress.com/w/wholesale-st7735-1.8-tft-display.html) | |
+| 1 | ESP32 LOLIN C3 Mini | [AliExpress](https://www.aliexpress.us/item/3256804553736450.html?pdp_npi=4%40dis%21USD%21US%20%245.47%21US%20%240.99%21%21%215.47%210.99%21%402103119417736152975654869d1287%2112000056120453300%21sh%21US%217425461850%21X&spm=a2g0o.store_pc_home.productList_2009695634908.1005004740051202&gatewayAdapt=glo2usa) | |
+| 1 | 1.8" TFT Display ST7735 | [AliExpress](https://www.aliexpress.us/item/3256809750593574.html?spm=a2g0o.productlist.main.2.71184dab1tsmCB&algo_pvid=4540c901-2267-4297-894a-94d7b7e40b90&algo_exp_id=4540c901-2267-4297-894a-94d7b7e40b90-1&pdp_ext_f=%7B"order"%3A"199"%2C"eval"%3A"1"%2C"fromPage"%3A"search"%7D&pdp_npi=6%40dis%21USD%218.14%210.99%21%21%2155.72%216.76%21%40210311cc17736153139033443ee5db%2112000050625051194%21sea%21US%217425461850%21ABX%211%210%21n_tag%3A-29910%3Bd%3A6670291b%3Bm03_new_user%3A-29895%3BpisId%3A5000000197847475&curPageLogUid=sl2faarfQKwY&utparam-url=scene%3Asearch%7Cquery_from%3A%7Cx_object_id%3A1005009936908326%7C_p_origin_prod%3A&_gl=1*4nhmo6*_gcl_au*OTExMzQxMzAyLjE3NzM2MTUyNjg.*_ga*MTY2NjQwMzk4OC4xNzczNjE1MjY4*_ga_VED1YSGNC7*czE3NzM2MTUyNjgkbzEkZzEkdDE3NzM2MTUzMTIkajE2JGwwJGgw) | |
 | 1 | Custom PCB | [JLCPCB](https://jlcpcb.com) | Already ordered |
 | 3 | Cherry MX Switches | [NovelKeys](https://novelkeys.com/products/cherry-mx2a-switches) | Leftover from Hackpad |
 | 3 | Keycaps (1u) | [NovelKeys](https://novelkeys.com) | Leftover from Hackpad |
