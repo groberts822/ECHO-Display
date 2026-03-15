@@ -1,2 +1,8 @@
-Name,Purpose,Cost (USD),Qty,Total (USD),Link,Distributor
-ECHO PCB,PCB For Spotify Display,$5.30,1,$5.30,https://cart.jlcpcb.com/shopcart/cart/,JLCPCB
+Qty	Part	Link	Notes
+1	ESP32 LOLIN C3 Mini	AliExpress	
+1	1.8" TFT Display ST7735	AliExpress	
+1	Custom PCB	JLCPCB	Already ordered
+3	Cherry MX Switches	NovelKeys	Leftover from Hackpad
+3	Keycaps (1u)	NovelKeys	Leftover from Hackpad
+4	M3 Heatset Inserts	Amazon	Leftover from Hackpad
+4	M3 Screws	Amazon	Leftover from Hackpad
