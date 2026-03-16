@@ -6,145 +6,102 @@
 #include <SpotifyEsp32.h>
 #include <SPI.h>
 
-// =====================
-// YOUR CREDENTIALS HERE
-// =====================
-char* SSID           = "YOUR_WIFI_SSID";
-char* PASSWORD       = "YOUR_WIFI_PASSWORD";
-const char* CLIENT_ID     = "YOUR_SPOTIFY_CLIENT_ID";
-const char* CLIENT_SECRET = "YOUR_SPOTIFY_CLIENT_SECRET";
+char* SSID     = "My WiFi SSID";
+char* PASS     = "My WiFi Password";
+const char* CLID  = "My Spotify Client ID";
+const char* CLSEC = "My Spotify Client Secret";
 
-// =====================
-// PIN DEFINITIONS
-// =====================
 #define TFT_CS    3
 #define TFT_RST   1
 #define TFT_DC    2
 #define TFT_SCLK  4
 #define TFT_MOSI  5
 
-#define BTN_LEFT   6   // SW1 - previous / move left in game
-#define BTN_MID    7   // SW2 - play/pause / shoot in game
-#define BTN_RIGHT  8   // SW3 - skip / move right in game
+#define BTN_L  6
+#define BTN_M  7
+#define BTN_R  8
 
-// =====================
-// OBJECTS
-// =====================
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
-Spotify sp(CLIENT_ID, CLIENT_SECRET);
+Spotify sp(CLID, CLSEC);
 
-// =====================
-// DISPLAY DIMENSIONS
-// =====================
-#define SCREEN_W 160
-#define SCREEN_H 128
+#define SW 160
+#define SH 128
 
-// =====================
-// MOOD COLOR THRESHOLDS
-// These map Spotify energy/valence to background colors
-// =====================
-#define MOOD_HYPE   tft.color565(180, 0, 0)     // high energy - red
-#define MOOD_HAPPY  tft.color565(180, 120, 0)   // happy - orange
-#define MOOD_CHILL  tft.color565(0, 80, 160)    // chill - blue
-#define MOOD_SAD    tft.color565(40, 0, 80)      // sad - dark purple
-#define MOOD_NORMAL tft.color565(0, 0, 0)        // default - black
+// rough mood colors - not using audio features api, just proxying off name length for now
+// TODO: hook into actual valence/energy endpoint when i have time
+#define C_HYPE   tft.color565(180, 0, 0)
+#define C_HAPPY  tft.color565(180, 120, 0)
+#define C_CHILL  tft.color565(0, 80, 160)
+#define C_SAD    tft.color565(40, 0, 80)
+#define C_DEF    tft.color565(0, 0, 0)
 
-// =====================
-// SPOTIFY STATE
-// =====================
-String lastTrack    = "";
-String lastArtist   = "";
-bool   lastPlaying  = false;
-int    scrollOffset = 0;
-unsigned long lastScrollTime  = 0;
-unsigned long lastSpotifyPoll = 0;
-unsigned long lastBarUpdate   = 0;
-uint16_t currentMoodColor     = MOOD_NORMAL;
+String trkName  = "";
+String trkArtist = "";
+bool   playing  = false;
+int    scrollOff = 0;
+unsigned long tScroll = 0;
+unsigned long tPoll   = 0;
+uint16_t moodCol = C_DEF;
 
-// bouncing bars state
-int barHeights[3]     = {10, 20, 15};
-int barTargets[3]     = {10, 20, 15};
-unsigned long lastBarAnim = 0;
+int bH[3] = {10, 20, 15};
+int bT[3] = {10, 20, 15};
+unsigned long tBar = 0;
 
-// progress bar
-int trackDuration = 0;  // ms
-int trackProgress = 0;  // ms
+// progress is faked rn - SpotifyEsp32 doesnt expose it cleanly
+// leaving at 0.5 until i find a workaround
+float prog = 0.5;
 
-// =====================
-// BUTTON STATE
-// =====================
-bool btn1Last = HIGH, btn2Last = HIGH, btn3Last = HIGH;
-unsigned long btn1PressTime = 0, btn2PressTime = 0, btn3PressTime = 0;
-bool allHeld = false;
+bool b1Lst = HIGH, b2Lst = HIGH, b3Lst = HIGH;
+unsigned long bHoldT = 0;
+bool held = false;
 
-// =====================
-// GAME MODE
-// =====================
-bool gameMode = false;
+bool gMode = false;
 
-// --- Space Invaders state ---
-#define MAX_INVADERS  12
-#define MAX_BULLETS    4
+#define N_INV  12
+#define N_BLTS  4
 
-struct Invader {
-  int x, y;
-  bool alive;
-};
+struct Inv { int x, y; bool alive; };
+struct Blt { int x, y; bool on; };
 
-struct Bullet {
-  int x, y;
-  bool active;
-};
+Inv invs[N_INV];
+Blt pBullets[N_BLTS];
+Blt iBullet;
 
-Invader invaders[MAX_INVADERS];
-Bullet  playerBullets[MAX_BULLETS];
-Bullet  invaderBullet;
+int pX    = SW / 2;
+int lives = 3;
+int score = 0;
+int iDir  = 1;
+unsigned long tTick = 0;
+bool gOver = false;
+bool gWon  = false;
 
-int playerX        = SCREEN_W / 2;
-int playerLives    = 3;
-int score          = 0;
-int invaderDir     = 1;  // 1 = right, -1 = left
-unsigned long lastGameTick = 0;
-bool gameOver      = false;
-bool gameWon       = false;
-
-// =====================
-// FORWARD DECLARATIONS
-// =====================
-void drawSpotifyScreen();
+void drawSp();
 void drawBars();
-void scrollTrackName(String name);
-uint16_t getMoodColor(String track);
-void checkHoldForGameMode();
+uint16_t moodColor(String t);
+void checkHold();
 void runGame();
 void initGame();
 void drawGame();
-void moveInvaders();
-void movePlayerBullets();
-void moveInvaderBullet();
-void checkCollisions();
-void drawPlayer();
-void clearPlayer(int x);
-void gameOverScreen();
-void gameWonScreen();
+void moveInvs();
+void movePBullets();
+void moveIBullet();
+void checkHits();
+void drawShip();
+void clearShip(int x);
+void scrGameOver();
+void scrWin();
 
-// =====================
-// SETUP
-// =====================
 void setup() {
   Serial.begin(115200);
 
-  // Button pins
-  pinMode(BTN_LEFT,  INPUT_PULLUP);
-  pinMode(BTN_MID,   INPUT_PULLUP);
-  pinMode(BTN_RIGHT, INPUT_PULLUP);
+  pinMode(BTN_L, INPUT_PULLUP);
+  pinMode(BTN_M, INPUT_PULLUP);
+  pinMode(BTN_R, INPUT_PULLUP);
 
-  // TFT init
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(1);
   tft.fillScreen(ST77XX_BLACK);
 
-  // Boot animation - display ECHO name
   tft.setTextSize(3);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(40, 50);
@@ -152,447 +109,311 @@ void setup() {
   delay(1000);
   tft.fillScreen(ST77XX_BLACK);
 
-  // WiFi
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(0, 0);
-  tft.print("Connecting to WiFi...");
-  WiFi.begin(SSID, PASSWORD);
+  tft.print("Connecting...");
+  WiFi.begin(SSID, PASS);
   int dots = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     tft.print(".");
-    dots++;
-    if (dots > 20) {
+    if (++dots > 20) {
       tft.fillScreen(ST77XX_BLACK);
       tft.setCursor(0, 0);
       dots = 0;
     }
   }
+
   tft.fillScreen(ST77XX_BLACK);
   tft.setCursor(0, 0);
-  tft.print("WiFi OK!");
+  tft.print("WiFi up");
   tft.setCursor(0, 12);
   tft.print(WiFi.localIP().toString().c_str());
   delay(2000);
 
-  // Spotify auth
   tft.fillScreen(ST77XX_BLACK);
   tft.setCursor(0, 0);
   tft.print("Spotify auth...");
   tft.setCursor(0, 12);
-  tft.print("Visit IP in browser");
+  tft.print("open IP in browser");
   sp.begin();
-  while (!sp.is_auth()) {
-    sp.handle_client();
-  }
+  while (!sp.is_auth()) sp.handle_client();
 
   tft.fillScreen(ST77XX_BLACK);
   tft.setCursor(0, 0);
-  tft.print("Authenticated!");
-  delay(1000);
+  tft.print("good to go");
+  delay(800);
   tft.fillScreen(ST77XX_BLACK);
 }
 
-// =====================
-// MAIN LOOP
-// =====================
 void loop() {
-  checkHoldForGameMode();
+  checkHold();
 
-  if (gameMode) {
+  if (gMode) {
     runGame();
-  } else {
-    // Poll Spotify every 2 seconds
-    if (millis() - lastSpotifyPoll > 2000) {
-      lastSpotifyPoll = millis();
-      drawSpotifyScreen();
-    }
-
-    // Scroll long names
-    if (millis() - lastScrollTime > 200) {
-      lastScrollTime = millis();
-      if (lastTrack.length() > 18) {
-        scrollOffset++;
-        if (scrollOffset > (int)lastTrack.length()) scrollOffset = 0;
-        // redraw track name area only
-        tft.fillRect(0, 40, SCREEN_W, 16, currentMoodColor);
-        tft.setTextColor(ST77XX_WHITE);
-        tft.setTextSize(2);
-        tft.setCursor(0, 40);
-        String scrolled = lastTrack.substring(scrollOffset) + "   " + lastTrack.substring(0, scrollOffset);
-        tft.print(scrolled.substring(0, 13));
-      }
-    }
-
-    // Animate bars
-    if (millis() - lastBarAnim > 150 && lastPlaying) {
-      lastBarAnim = millis();
-      drawBars();
-    }
+    return;
   }
-}
 
-// =====================
-// SPOTIFY DISPLAY
-// =====================
-void drawSpotifyScreen() {
-  String currentTrack  = sp.current_track_name();
-  String currentArtist = sp.current_artist_names();
-  bool   isPlaying     = sp.is_playing();
+  if (millis() - tPoll > 2000) {
+    tPoll = millis();
+    drawSp();
+  }
 
-  if (currentTrack == "Something went wrong" || currentTrack == "null" || currentTrack.isEmpty()) return;
-
-  bool changed = (currentTrack != lastTrack || currentArtist != lastArtist || isPlaying != lastPlaying);
-
-  if (changed) {
-    lastTrack   = currentTrack;
-    lastArtist  = currentArtist;
-    lastPlaying = isPlaying;
-    scrollOffset = 0;
-
-    // Mood color
-    currentMoodColor = getMoodColor(currentTrack);
-    tft.fillScreen(currentMoodColor);
-
-    // Playing indicator
-    tft.setTextSize(1);
+  // scroll if name too long
+  if (millis() - tScroll > 200 && trkName.length() > 18) {
+    tScroll = millis();
+    if (++scrollOff > (int)trkName.length()) scrollOff = 0;
+    tft.fillRect(0, 40, SW, 16, moodCol);
     tft.setTextColor(ST77XX_WHITE);
-    tft.setCursor(0, 0);
-    tft.print(isPlaying ? ">> NOW PLAYING" : "|| PAUSED");
-
-    // Artist name (small)
-    tft.setTextSize(1);
-    tft.setCursor(0, 20);
-    String artistShort = currentArtist.length() > 26 ? currentArtist.substring(0, 26) : currentArtist;
-    tft.print(artistShort.c_str());
-
-    // Track name (big, scrolls if long)
     tft.setTextSize(2);
     tft.setCursor(0, 40);
-    if (currentTrack.length() <= 13) {
-      tft.print(currentTrack.c_str());
-    } else {
-      tft.print(currentTrack.substring(0, 13).c_str());
-    }
+    String s = trkName.substring(scrollOff) + "   " + trkName.substring(0, scrollOff);
+    tft.print(s.substring(0, 13));
+  }
 
-    // Bouncing bars
+  if (millis() - tBar > 150 && playing) {
+    tBar = millis();
     drawBars();
   }
-
-  // Progress bar at bottom
-  tft.fillRect(0, SCREEN_H - 6, SCREEN_W, 6, tft.color565(50, 50, 50));
-  // NOTE: SpotifyEsp32 doesn't expose progress directly
-  // Replace progressPercent below with actual value if your lib supports it
-  float progressPercent = 0.5; // PLACEHOLDER - replace with real progress if available
-  int barW = (int)(progressPercent * SCREEN_W);
-  tft.fillRect(0, SCREEN_H - 6, barW, 6, ST77XX_GREEN);
 }
 
-// =====================
-// BOUNCING BARS ANIMATION
-// =====================
+void drawSp() {
+  String trk = sp.current_track_name();
+  String art  = sp.current_artist_names();
+  bool   isP  = sp.is_playing();
+
+  if (trk == "Something went wrong" || trk == "null" || trk.isEmpty()) return;
+
+  bool changed = (trk != trkName || art != trkArtist || isP != playing);
+  if (!changed) {
+    // still update progress bar even if nothing changed
+    int bw = (int)(prog * SW);
+    tft.fillRect(0, SH - 6, SW, 6, tft.color565(50, 50, 50));
+    tft.fillRect(0, SH - 6, bw, 6, ST77XX_GREEN);
+    return;
+  }
+
+  trkName   = trk;
+  trkArtist = art;
+  playing   = isP;
+  scrollOff = 0;
+
+  moodCol = moodColor(trk);
+  tft.fillScreen(moodCol);
+
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(0, 0);
+  tft.print(isP ? ">> NOW PLAYING" : "|| PAUSED");
+
+  tft.setCursor(0, 20);
+  String a = art.length() > 26 ? art.substring(0, 26) : art;
+  tft.print(a.c_str());
+
+  tft.setTextSize(2);
+  tft.setCursor(0, 40);
+  tft.print(trk.substring(0, 13).c_str());
+
+  drawBars();
+
+  int bw = (int)(prog * SW);
+  tft.fillRect(0, SH - 6, SW, 6, tft.color565(50, 50, 50));
+  tft.fillRect(0, SH - 6, bw, 6, ST77XX_GREEN);
+}
+
 void drawBars() {
-  int barW  = 8;
-  int barGap = 4;
-  int startX = SCREEN_W - (3 * barW + 2 * barGap) - 4;
-  int baseY  = SCREEN_H - 10;
-  int maxH   = 30;
+  int bw = 8, gap = 4;
+  int sx = SW - (3 * bw + 2 * gap) - 4;
+  int by = SH - 10;
+  int mh = 30;
 
   for (int i = 0; i < 3; i++) {
-    // Random target height
-    if (random(10) > 6) {
-      barTargets[i] = random(6, maxH);
-    }
-    // Ease toward target
-    if (barHeights[i] < barTargets[i]) barHeights[i]++;
-    else if (barHeights[i] > barTargets[i]) barHeights[i]--;
-
-    int x = startX + i * (barW + barGap);
-    // Clear old bar
-    tft.fillRect(x, baseY - maxH, barW, maxH, currentMoodColor);
-    // Draw new bar
-    tft.fillRect(x, baseY - barHeights[i], barW, barHeights[i], ST77XX_GREEN);
+    if (random(10) > 6) bT[i] = random(6, mh);
+    if (bH[i] < bT[i]) bH[i]++;
+    else if (bH[i] > bT[i]) bH[i]--;
+    int x = sx + i * (bw + gap);
+    tft.fillRect(x, by - mh, bw, mh, moodCol);
+    tft.fillRect(x, by - bH[i], bw, bH[i], ST77XX_GREEN);
   }
 }
 
-// =====================
-// MOOD COLOR
-// Based on track name length as a proxy (replace with Spotify audio features API if desired)
-// =====================
-uint16_t getMoodColor(String track) {
-  // Placeholder mood logic - you can later hook into Spotify audio features
-  // for real energy/valence values
-  int len = track.length();
-  if (len < 5)  return MOOD_SAD;
-  if (len < 10) return MOOD_CHILL;
-  if (len < 15) return MOOD_HAPPY;
-  return MOOD_HYPE;
+uint16_t moodColor(String t) {
+  int l = t.length();
+  if (l < 5)  return C_SAD;
+  if (l < 10) return C_CHILL;
+  if (l < 15) return C_HAPPY;
+  return C_HYPE;
 }
 
-// =====================
-// HOLD ALL 3 BUTTONS = TOGGLE GAME MODE
-// =====================
-void checkHoldForGameMode() {
-  bool b1 = digitalRead(BTN_LEFT)  == LOW;
-  bool b2 = digitalRead(BTN_MID)   == LOW;
-  bool b3 = digitalRead(BTN_RIGHT) == LOW;
+void checkHold() {
+  bool b1 = digitalRead(BTN_L) == LOW;
+  bool b2 = digitalRead(BTN_M) == LOW;
+  bool b3 = digitalRead(BTN_R) == LOW;
 
   if (b1 && b2 && b3) {
-    if (!allHeld) {
-      allHeld = true;
-      btn1PressTime = millis();
-    } else if (millis() - btn1PressTime > 2000) {
-      // Held for 2 seconds - toggle game mode
-      gameMode = !gameMode;
-      allHeld = false;
-      if (gameMode) {
-        initGame();
-      } else {
-        tft.fillScreen(ST77XX_BLACK);
-        lastTrack = ""; // force redraw
-      }
-      delay(500); // debounce
+    if (!held) { held = true; bHoldT = millis(); }
+    else if (millis() - bHoldT > 2000) {
+      gMode = !gMode;
+      held  = false;
+      if (gMode) initGame();
+      else { tft.fillScreen(ST77XX_BLACK); trkName = ""; }
+      delay(500);
     }
   } else {
-    allHeld = false;
+    held = false;
   }
 }
 
-// =====================
-// GAME - INIT
-// =====================
 void initGame() {
   tft.fillScreen(ST77XX_BLACK);
-  playerX     = SCREEN_W / 2;
-  playerLives = 3;
-  score       = 0;
-  gameOver    = false;
-  gameWon     = false;
-  invaderDir  = 1;
+  pX = SW / 2; lives = 3; score = 0;
+  gOver = false; gWon = false; iDir = 1;
 
-  // Clear bullets
-  for (int i = 0; i < MAX_BULLETS; i++) playerBullets[i].active = false;
-  invaderBullet.active = false;
+  for (int i = 0; i < N_BLTS; i++) pBullets[i].on = false;
+  iBullet.on = false;
 
-  // Place invaders in a 4x3 grid
   int idx = 0;
-  for (int row = 0; row < 3; row++) {
-    for (int col = 0; col < 4; col++) {
-      invaders[idx].x     = 10 + col * 35;
-      invaders[idx].y     = 10 + row * 18;
-      invaders[idx].alive = true;
-      idx++;
-    }
-  }
+  for (int r = 0; r < 3; r++)
+    for (int c = 0; c < 4; c++)
+      invs[idx++] = { 10 + c * 35, 10 + r * 18, true };
 
   drawGame();
 }
 
-// =====================
-// GAME - MAIN LOOP
-// =====================
 void runGame() {
-  if (gameOver) { gameOverScreen(); return; }
-  if (gameWon)  { gameWonScreen();  return; }
+  if (gOver) { scrGameOver(); return; }
+  if (gWon)  { scrWin();      return; }
 
-  bool b1 = digitalRead(BTN_LEFT)  == LOW;
-  bool b2 = digitalRead(BTN_MID)   == LOW;
-  bool b3 = digitalRead(BTN_RIGHT) == LOW;
+  bool b1 = digitalRead(BTN_L) == LOW;
+  bool b2 = digitalRead(BTN_M) == LOW;
+  bool b3 = digitalRead(BTN_R) == LOW;
 
-  // Move player
-  if (b1 && playerX > 4) {
-    clearPlayer(playerX);
-    playerX -= 3;
-  }
-  if (b3 && playerX < SCREEN_W - 12) {
-    clearPlayer(playerX);
-    playerX += 3;
-  }
+  if (b1 && pX > 4)         { clearShip(pX); pX -= 3; }
+  if (b3 && pX < SW - 12)   { clearShip(pX); pX += 3; }
 
-  // Shoot
-  static unsigned long lastShot = 0;
-  if (b2 && millis() - lastShot > 300) {
-    lastShot = millis();
-    for (int i = 0; i < MAX_BULLETS; i++) {
-      if (!playerBullets[i].active) {
-        playerBullets[i].x      = playerX + 4;
-        playerBullets[i].y      = SCREEN_H - 20;
-        playerBullets[i].active = true;
+  static unsigned long tShot = 0;
+  if (b2 && millis() - tShot > 300) {
+    tShot = millis();
+    for (int i = 0; i < N_BLTS; i++) {
+      if (!pBullets[i].on) {
+        pBullets[i] = { pX + 4, SH - 20, true };
         break;
       }
     }
   }
 
-  if (millis() - lastGameTick > 60) {
-    lastGameTick = millis();
-    moveInvaders();
-    movePlayerBullets();
-    moveInvaderBullet();
-    checkCollisions();
-    drawGame();
+  if (millis() - tTick > 60) {
+    tTick = millis();
+    moveInvs(); movePBullets(); moveIBullet(); checkHits(); drawGame();
   }
 }
 
-// =====================
-// GAME - DRAW
-// =====================
 void drawGame() {
   tft.fillScreen(ST77XX_BLACK);
-
-  // Score & lives
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(0, 0);
-  tft.print("SCORE:");
-  tft.print(score);
-  tft.setCursor(100, 0);
-  tft.print("LVS:");
-  tft.print(playerLives);
+  tft.setCursor(0, 0);  tft.print("SC:"); tft.print(score);
+  tft.setCursor(100, 0); tft.print("HP:"); tft.print(lives);
 
-  // Invaders
-  for (int i = 0; i < MAX_INVADERS; i++) {
-    if (invaders[i].alive) {
-      tft.fillRect(invaders[i].x, invaders[i].y, 10, 8, ST77XX_GREEN);
-      // little antenna
-      tft.drawPixel(invaders[i].x + 2, invaders[i].y - 2, ST77XX_GREEN);
-      tft.drawPixel(invaders[i].x + 7, invaders[i].y - 2, ST77XX_GREEN);
-    }
+  for (int i = 0; i < N_INV; i++) {
+    if (!invs[i].alive) continue;
+    tft.fillRect(invs[i].x, invs[i].y, 10, 8, ST77XX_GREEN);
+    tft.drawPixel(invs[i].x + 2, invs[i].y - 2, ST77XX_GREEN);
+    tft.drawPixel(invs[i].x + 7, invs[i].y - 2, ST77XX_GREEN);
   }
 
-  // Player bullets
-  for (int i = 0; i < MAX_BULLETS; i++) {
-    if (playerBullets[i].active) {
-      tft.fillRect(playerBullets[i].x, playerBullets[i].y, 2, 6, ST77XX_YELLOW);
-    }
-  }
+  for (int i = 0; i < N_BLTS; i++)
+    if (pBullets[i].on)
+      tft.fillRect(pBullets[i].x, pBullets[i].y, 2, 6, ST77XX_YELLOW);
 
-  // Invader bullet
-  if (invaderBullet.active) {
-    tft.fillRect(invaderBullet.x, invaderBullet.y, 2, 6, ST77XX_RED);
-  }
+  if (iBullet.on)
+    tft.fillRect(iBullet.x, iBullet.y, 2, 6, ST77XX_RED);
 
-  // Player ship
-  drawPlayer();
+  drawShip();
 }
 
-void drawPlayer() {
-  // Simple ship shape
-  tft.fillTriangle(playerX, SCREEN_H - 10, playerX + 8, SCREEN_H - 10, playerX + 4, SCREEN_H - 18, ST77XX_CYAN);
+void drawShip() {
+  tft.fillTriangle(pX, SH-10, pX+8, SH-10, pX+4, SH-18, ST77XX_CYAN);
 }
 
-void clearPlayer(int x) {
-  tft.fillRect(x, SCREEN_H - 20, 10, 12, ST77XX_BLACK);
+void clearShip(int x) {
+  tft.fillRect(x, SH - 20, 10, 12, ST77XX_BLACK);
 }
 
-// =====================
-// GAME - MOVE INVADERS
-// =====================
-void moveInvaders() {
-  static int moveCounter = 0;
-  moveCounter++;
-  if (moveCounter < 3) return;
-  moveCounter = 0;
+void moveInvs() {
+  static int mv = 0;
+  if (++mv < 3) return;
+  mv = 0;
 
-  bool hitEdge = false;
-  for (int i = 0; i < MAX_INVADERS; i++) {
-    if (invaders[i].alive) {
-      invaders[i].x += invaderDir * 2;
-      if (invaders[i].x > SCREEN_W - 12 || invaders[i].x < 0) hitEdge = true;
-    }
+  bool edge = false;
+  for (int i = 0; i < N_INV; i++) {
+    if (!invs[i].alive) continue;
+    invs[i].x += iDir * 2;
+    if (invs[i].x > SW - 12 || invs[i].x < 0) edge = true;
   }
-  if (hitEdge) {
-    invaderDir *= -1;
-    for (int i = 0; i < MAX_INVADERS; i++) {
-      if (invaders[i].alive) invaders[i].y += 6;
-    }
+  if (edge) {
+    iDir *= -1;
+    for (int i = 0; i < N_INV; i++)
+      if (invs[i].alive) invs[i].y += 6;
   }
 
-  // Random invader shoots
-  if (!invaderBullet.active && random(20) == 0) {
-    // Pick a random alive invader to shoot
-    int shooter = random(MAX_INVADERS);
-    for (int i = 0; i < MAX_INVADERS; i++) {
-      int idx = (shooter + i) % MAX_INVADERS;
-      if (invaders[idx].alive) {
-        invaderBullet.x      = invaders[idx].x + 4;
-        invaderBullet.y      = invaders[idx].y + 8;
-        invaderBullet.active = true;
+  if (!iBullet.on && random(20) == 0) {
+    int s = random(N_INV);
+    for (int i = 0; i < N_INV; i++) {
+      int idx = (s + i) % N_INV;
+      if (invs[idx].alive) {
+        iBullet = { invs[idx].x + 4, invs[idx].y + 8, true };
         break;
       }
     }
   }
 }
 
-// =====================
-// GAME - MOVE BULLETS
-// =====================
-void movePlayerBullets() {
-  for (int i = 0; i < MAX_BULLETS; i++) {
-    if (playerBullets[i].active) {
-      playerBullets[i].y -= 5;
-      if (playerBullets[i].y < 0) playerBullets[i].active = false;
-    }
+void movePBullets() {
+  for (int i = 0; i < N_BLTS; i++) {
+    if (!pBullets[i].on) continue;
+    pBullets[i].y -= 5;
+    if (pBullets[i].y < 0) pBullets[i].on = false;
   }
 }
 
-void moveInvaderBullet() {
-  if (invaderBullet.active) {
-    invaderBullet.y += 4;
-    if (invaderBullet.y > SCREEN_H) invaderBullet.active = false;
-  }
+void moveIBullet() {
+  if (!iBullet.on) return;
+  iBullet.y += 4;
+  if (iBullet.y > SH) iBullet.on = false;
 }
 
-// =====================
-// GAME - COLLISIONS
-// =====================
-void checkCollisions() {
-  // Player bullets vs invaders
-  for (int b = 0; b < MAX_BULLETS; b++) {
-    if (!playerBullets[b].active) continue;
-    for (int i = 0; i < MAX_INVADERS; i++) {
-      if (!invaders[i].alive) continue;
-      if (playerBullets[b].x >= invaders[i].x &&
-          playerBullets[b].x <= invaders[i].x + 10 &&
-          playerBullets[b].y >= invaders[i].y &&
-          playerBullets[b].y <= invaders[i].y + 8) {
-        invaders[i].alive         = false;
-        playerBullets[b].active   = false;
-        score                    += 10;
+void checkHits() {
+  for (int b = 0; b < N_BLTS; b++) {
+    if (!pBullets[b].on) continue;
+    for (int i = 0; i < N_INV; i++) {
+      if (!invs[i].alive) continue;
+      if (pBullets[b].x >= invs[i].x && pBullets[b].x <= invs[i].x + 10 &&
+          pBullets[b].y >= invs[i].y && pBullets[b].y <= invs[i].y + 8) {
+        invs[i].alive  = false;
+        pBullets[b].on = false;
+        score += 10;
       }
     }
   }
 
-  // Invader bullet vs player
-  if (invaderBullet.active) {
-    if (invaderBullet.x >= playerX &&
-        invaderBullet.x <= playerX + 8 &&
-        invaderBullet.y >= SCREEN_H - 18) {
-      invaderBullet.active = false;
-      playerLives--;
-      if (playerLives <= 0) gameOver = true;
-    }
+  if (iBullet.on &&
+      iBullet.x >= pX && iBullet.x <= pX + 8 &&
+      iBullet.y >= SH - 18) {
+    iBullet.on = false;
+    if (--lives <= 0) gOver = true;
   }
 
-  // Invaders reach bottom
-  for (int i = 0; i < MAX_INVADERS; i++) {
-    if (invaders[i].alive && invaders[i].y >= SCREEN_H - 20) {
-      gameOver = true;
-    }
-  }
+  for (int i = 0; i < N_INV; i++)
+    if (invs[i].alive && invs[i].y >= SH - 20) gOver = true;
 
-  // All invaders dead
-  bool anyAlive = false;
-  for (int i = 0; i < MAX_INVADERS; i++) {
-    if (invaders[i].alive) { anyAlive = true; break; }
-  }
-  if (!anyAlive) gameWon = true;
+  bool any = false;
+  for (int i = 0; i < N_INV; i++) if (invs[i].alive) { any = true; break; }
+  if (!any) gWon = true;
 }
 
-// =====================
-// GAME OVER / WIN SCREENS
-// =====================
-void gameOverScreen() {
+void scrGameOver() {
   tft.fillScreen(ST77XX_BLACK);
   tft.setTextColor(ST77XX_RED);
   tft.setTextSize(2);
@@ -600,15 +421,12 @@ void gameOverScreen() {
   tft.print("GAME OVER");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
-  tft.setCursor(30, 70);
-  tft.print("SCORE: ");
-  tft.print(score);
-  tft.setCursor(10, 90);
-  tft.print("Hold all 3 to exit");
+  tft.setCursor(30, 70); tft.print("SCORE: "); tft.print(score);
+  tft.setCursor(10, 90); tft.print("hold all 3 to exit");
   delay(200);
 }
 
-void gameWonScreen() {
+void scrWin() {
   tft.fillScreen(ST77XX_BLACK);
   tft.setTextColor(ST77XX_GREEN);
   tft.setTextSize(2);
@@ -616,10 +434,7 @@ void gameWonScreen() {
   tft.print("YOU WIN!");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
-  tft.setCursor(30, 70);
-  tft.print("SCORE: ");
-  tft.print(score);
-  tft.setCursor(10, 90);
-  tft.print("Hold all 3 to exit");
+  tft.setCursor(30, 70); tft.print("SCORE: "); tft.print(score);
+  tft.setCursor(10, 90); tft.print("hold all 3 to exit");
   delay(200);
 }
